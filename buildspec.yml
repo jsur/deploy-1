@@ -2,19 +2,23 @@ version: 0.2
 env:
   variables:
     IMAGE_REPO_NAME: deploy-1
-    IMAGE_NAME: deploy-1-$(git rev-parse --short HEAD)
+    IMAGE_TAG: latest
+    AWS_ACCOUNT_ID: 566312720731
 phases:
-  install:
-    commands:
-      - aws codeartifact login --tool npm --repository npm --domain deploy --domain-owner 566312720731 --region eu-central-1
-      - npm ci
   pre_build:
     commands:
-      - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - aws codeartifact login --tool npm --repository npm --domain deploy --domain-owner 566312720731 --region eu-central-1
   build:
     commands:
+      - npm ci
       - npm run build
-      - docker build -t $IMAGE_NAME .
+      - echo Building the Docker image...
+      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG .
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
   post_build:
     commands:
-      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME
+      - echo Build completed on `date`
+      - echo Pushing the Docker image...
+      - docker images
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
