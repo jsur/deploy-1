@@ -1,0 +1,19 @@
+version: 0.2
+env:
+  variables:
+    IMAGE_REPO_NAME: deploy-1
+    IMAGE_NAME: deploy-1-$(git rev-parse --short HEAD)
+phases:
+  install:
+    commands:
+      - npm ci
+  pre_build:
+    commands:
+      - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+  build:
+    commands:
+      - npm run build
+      - docker build -t $IMAGE_NAME .
+  post_build:
+    commands:
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME
