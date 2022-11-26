@@ -6,6 +6,7 @@ env:
 phases:
   install:
     commands:
+      - aws codeartifact login --tool npm --repository npm --domain deploy --domain-owner 566312720731 --region eu-central-1
       - npm ci
   pre_build:
     commands:
