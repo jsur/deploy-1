@@ -7,8 +7,8 @@ env:
 phases:
   pre_build:
     commands:
-      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
-      - aws codeartifact login --tool npm --repository npm --domain deploy --domain-owner 566312720731 --region eu-central-1
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login -u AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - aws codeartifact login --tool npm --repository npm --domain deploy-1 --domain-owner 566312720731 --region eu-central-1
   build:
     commands:
       - npm ci
