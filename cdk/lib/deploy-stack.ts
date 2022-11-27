@@ -4,13 +4,18 @@ import * as codepipeline from "aws-cdk-lib/aws-codepipeline";
 import { Construct } from "constructs";
 import {
   CodeBuildAction,
+  EcsDeployAction,
   GitHubSourceAction,
+  GitHubTrigger,
 } from "aws-cdk-lib/aws-codepipeline-actions";
 import { Artifact } from "aws-cdk-lib/aws-codepipeline";
 import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 import { CfnRepository } from "aws-cdk-lib/aws-codeartifact";
 import { LinuxBuildImage, Source } from "aws-cdk-lib/aws-codebuild";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
+import { Cluster, EcrImage } from "aws-cdk-lib/aws-ecs";
+import { Vpc } from "aws-cdk-lib/aws-ec2";
+import { ApplicationLoadBalancedFargateService } from "aws-cdk-lib/aws-ecs-patterns";
 
 export class DeployStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -46,7 +51,7 @@ export class DeployStack extends cdk.Stack {
     );
     [domain, upstream].forEach((item) => caRepo.node.addDependency(item));
 
-    new Repository(this, `${this.stackName}-ecr-repo`, {
+    const ecrRepo = new Repository(this, `${this.stackName}-ecr-repo`, {
       repositoryName: "deploy-1",
     });
 
@@ -78,6 +83,7 @@ export class DeployStack extends cdk.Stack {
           repo: "deploy-1",
           branch: "master",
           oauthToken: secret.secretValueFromJson("GH_OAUTH_TOKEN"),
+          trigger: GitHubTrigger.WEBHOOK,
         }),
       ],
     });
@@ -124,13 +130,46 @@ export class DeployStack extends cdk.Stack {
       })
     );
 
+    const imageDefinitions = new Artifact();
     pipeline.addStage({
       stageName: "Build",
       actions: [
         new CodeBuildAction({
           actionName: "codebuild-action",
           input: ghArtifact,
+          outputs: [imageDefinitions],
           project: cbProject,
+        }),
+      ],
+    });
+
+    const vpc = new Vpc(this, "vpc-1");
+
+    const fargateService = new ApplicationLoadBalancedFargateService(
+      this,
+      `${this.stackName}-fg-svc`,
+      {
+        cluster: new Cluster(this, "deploy-1-cluster", { vpc }),
+        listenerPort: 80,
+        cpu: 256,
+        memoryLimitMiB: 512,
+        desiredCount: 1,
+        taskImageOptions: {
+          image: EcrImage.fromEcrRepository(ecrRepo, "latest"),
+          containerPort: 5005,
+          enableLogging: true,
+          containerName: "deploy-1",
+        },
+      }
+    );
+
+    pipeline.addStage({
+      stageName: "Deploy",
+      actions: [
+        new EcsDeployAction({
+          actionName: "ecs-deploy",
+          input: imageDefinitions,
+          service: fargateService.service,
         }),
       ],
     });
