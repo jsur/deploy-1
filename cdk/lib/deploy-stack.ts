@@ -85,6 +85,7 @@ export class DeployStack extends cdk.Stack {
     const cbProject = new cdk.aws_codebuild.Project(this, "build", {
       environment: {
         buildImage: LinuxBuildImage.STANDARD_6_0,
+        privileged: true,
       },
       source: Source.gitHub({
         owner: "jsur",
